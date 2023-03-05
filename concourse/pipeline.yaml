@@ -1,0 +1,65 @@
+resource_types:
+- name: slack-alert
+  source:
+    repository: arbourd/concourse-slack-alert-resource
+  type: docker-image
+
+resources:
+- name: image-common-cicd-command-line-tools-image
+  source:
+    email: ((auth-harbor-production-rw.email))
+    password: ((auth-harbor-production-rw.password))
+    repository: ((auth-harbor-production-rw.prefix))((auth-harbor-production-rw.project))/common-cicd-command-line-tools
+    tag: latest
+    username: ((auth-harbor-production-rw.username))
+    insecure_registries: ["harbor.wkng.net"]
+  type: docker-image
+- name: image-common-cicd-command-line-tools-sources
+  source:
+    branch: main
+    skip_ssl_verification: true
+    uri: https://github.com/wellingtonking/docker-image-common-cicd-command-line-tools.git
+  type: git
+
+- name: slack-notify
+  source:
+    url: ((auth-slack-wo.hook_url))
+  type: slack-alert
+
+jobs:
+- name: self-update-pipeline
+  serial: true
+  plan:
+  - get: image-common-cicd-command-line-tools-sources
+    trigger: true
+  - set_pipeline: self
+    file: image-common-cicd-command-line-tools-sources/concourse/pipeline.yaml
+
+- name: build-and-push
+  on_abort:
+    params:
+      alert_type: aborted
+    put: slack-notify
+  on_error:
+    params:
+      alert_type: errored
+    put: slack-notify
+  on_failure:
+    params:
+      alert_type: failed
+    put: slack-notify
+  on_success:
+    params:
+      alert_type: success
+    put: slack-notify
+  plan:
+  - get: image-common-cicd-command-line-tools-sources
+    trigger: true
+  - params:
+      additional_tags: image-common-cicd-command-line-tools-sources/docker/additional_tags
+      build: image-common-cicd-command-line-tools-sources
+      build_args_file: image-common-cicd-command-line-tools-sources/docker/metadata.json
+    put: image-common-cicd-command-line-tools-image
+  public: true
+  serial: true
+

@@ -60,6 +60,6 @@ jobs:
       build: image-common-cicd-command-line-tools-sources
       build_args_file: image-common-cicd-command-line-tools-sources/docker/metadata.json
     put: image-common-cicd-command-line-tools-image
-  public: true
+  public: false
   serial: true
 
